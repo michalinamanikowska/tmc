@@ -1,7 +1,8 @@
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:tmc/data.dart';
 
 void main() {
   runApp(const MyApp());
@@ -10,59 +11,229 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-      ),
-      home: const MyHomePage(),
+      debugShowCheckedModeBanner: false,
+      home: MyHomePage(),
     );
   }
 }
 
-class MyHomePage extends StatelessWidget {
-  const MyHomePage({Key? key}) : super(key: key);
+class MyHomePage extends StatefulWidget {
+  MyHomePage({Key? key}) : super(key: key);
+
+  @override
+  State<MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  late Timer timer;
+  Map<MarkerId, Marker> _markers = <MarkerId, Marker>{};
+  final _mapController = Completer();
+  final _textController = TextEditingController();
+  final _focusNode = FocusNode();
+  bool? _showTram = false;
+  bool? _showBus = false;
+  String _searchValue = "";
+  bool _snackbarShown = true;
+
+  @override
+  void initState() {
+    startTimer();
+    super.initState();
+  }
+
+  void getData() async {
+    final vehicles = await DataRepo().getData();
+    Map<MarkerId, Marker> markers = <MarkerId, Marker>{};
+    final tram = await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(0.000001, 0.00001)), 'tram.png');
+    final bus = await BitmapDescriptor.fromAssetImage(
+        const ImageConfiguration(size: Size(0.000001, 0.00001)), 'bus.png');
+    for (var vehicle in vehicles) {
+      final markerId = vehicle.id.toString();
+      if (_searchValue == "" ||
+          (((vehicle.id >= 1000 && _showBus!) || (vehicle.id < 1000 && _showTram!)) &&
+              vehicle.nr == _searchValue)) {
+        final vehicleName = vehicle.id >= 1000 ? "Autobus" : "Tramwaj";
+        markers[MarkerId(markerId)] = Marker(
+          markerId: MarkerId(markerId),
+          position: LatLng(vehicle.latitude, vehicle.longitude),
+          icon: vehicle.id >= 1000 ? bus : tram,
+          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                vehicleName + " linii nr " + vehicle.nr.toString(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 17,
+                ),
+              ),
+              backgroundColor: Colors.black12.withOpacity(0.85),
+            ),
+          ),
+        );
+      }
+    }
+    setState(() {
+      _markers = markers;
+    });
+    if (_markers.isEmpty && !_snackbarShown) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Nie znaleziono pojazdów',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+              fontSize: 17,
+            ),
+          ),
+          backgroundColor: Colors.black12.withOpacity(0.85),
+        ),
+      );
+    }
+    _snackbarShown = true;
+  }
+
+  void startTimer() {
+    getData();
+    timer = Timer.periodic(const Duration(seconds: 5), (Timer t) async {
+      getData();
+    });
+  }
+
+  Widget checkboxRow({
+    required String title,
+    required void Function(bool?)? onChanged,
+    required IconData icon,
+    required bool? value,
+  }) =>
+      Row(
+        children: [
+          Checkbox(
+            value: value,
+            checkColor: Colors.black,
+            activeColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(2.0),
+            ),
+            side: MaterialStateBorderSide.resolveWith(
+              (states) => const BorderSide(width: 1.0, color: Colors.white),
+            ),
+            onChanged: onChanged,
+          ),
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(width: 3),
+          Icon(icon, color: Colors.white, size: 26),
+        ],
+      );
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        body: Center(
-      child: ElevatedButton(
-        onPressed: () => DataRepo().getData(),
-        child: Text("get data"),
+      resizeToAvoidBottomInset: false,
+      body: Stack(
+        children: [
+          GoogleMap(
+            myLocationEnabled: true,
+            initialCameraPosition: const CameraPosition(
+              target: LatLng(52.43, 16.93),
+              zoom: 12.00,
+            ),
+            onMapCreated: (GoogleMapController controller) {
+              _mapController.complete(controller);
+            },
+            markers: _markers.values.toSet(),
+          ),
+          Container(
+              height: 180,
+              width: MediaQuery.of(context).size.width,
+              color: Colors.black12.withOpacity(0.85),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 50, 16, 10),
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _focusNode,
+                      cursorColor: Colors.white,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: "Wprowadź numer pojazdu",
+                        hintStyle:
+                            const TextStyle(color: Colors.white, fontWeight: FontWeight.w400),
+                        focusedBorder: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(16.0)),
+                          borderSide: BorderSide(
+                            color: Colors.white60,
+                            width: 2.0,
+                          ),
+                        ),
+                        enabledBorder: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(16.0)),
+                          borderSide: BorderSide(color: Colors.white60),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.send, color: Colors.white),
+                          onPressed: () {
+                            FocusScope.of(context).unfocus();
+                            _snackbarShown = false;
+                            setState(() {
+                              _searchValue = _textController.text;
+                            });
+                            getData();
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, right: 24),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        checkboxRow(
+                          title: "autobus",
+                          onChanged: (value) {
+                            setState(() {
+                              _showBus = value;
+                            });
+                          },
+                          icon: Icons.directions_bus,
+                          value: _showBus,
+                        ),
+                        checkboxRow(
+                          title: "tramwaj",
+                          onChanged: (value) {
+                            setState(() {
+                              _showTram = value;
+                            });
+                          },
+                          icon: Icons.tram,
+                          value: _showTram,
+                        ),
+                      ],
+                    ),
+                  )
+                ],
+              )),
+        ],
       ),
-    ));
-  }
-}
-
-class DataRepo {
-  void getData() async {
-    const fileName = 'vehicle_positions.pb';
-    var params = {
-      'token':
-          'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ0ZXN0Mi56dG0ucG96bmFuLnBsIiwiY29kZSI6MSwibG9naW4iOiJtaFRvcm8iLCJ0aW1lc3RhbXAiOjE1MTM5NDQ4MTJ9.ND6_VN06FZxRfgVylJghAoKp4zZv6_yZVBu_1-yahlo',
-      'file': fileName,
-    };
-    var query = params.entries.map((p) => '${p.key}=${p.value}').join('&');
-    var url = Uri.parse('https://www.ztm.poznan.pl/pl/dla-deweloperow/getGtfsRtFile?$query');
-    var res = await http.get(url);
-    if (res.statusCode != 200) throw Exception('http.get error: statusCode= ${res.statusCode}');
-    Directory appDocumentsDirectory = await getApplicationDocumentsDirectory(); // 1
-    String appDocumentsPath = appDocumentsDirectory.path; // 2
-    String path = '$appDocumentsPath/$fileName';
-    File(path).writeAsBytes(res.bodyBytes);
-    print(path);
+    );
   }
 }

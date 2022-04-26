@@ -4,6 +4,16 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>true</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>true</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>true</string>
+	<key>NSBonjourServices</key>
+	<array>
+    	<string>_dartobservatory._tcp</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Tmc</string>
 	<key>CFBundleExecutable</key>
