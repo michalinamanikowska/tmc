@@ -4,7 +4,7 @@ import 'package:tmc/vehicle.dart';
 
 class DataRepo {
   Future<List<Vehicle>> getData() async {
-    final url = Uri.parse('https://69f5-46-205-211-138.eu.ngrok.io/fetchData');
+    final url = Uri.parse('https://0fbc-46-205-211-138.eu.ngrok.io/fetchData');
     final response = await http.get(url);
     final result = json.decode(response.body);
     List vehiclesTemp = result["vehicles"];

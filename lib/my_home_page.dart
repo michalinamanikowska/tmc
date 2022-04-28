@@ -16,8 +16,8 @@ class _MyHomePageState extends State<MyHomePage> {
   final _mapController = Completer();
   final _textController = TextEditingController();
   final _focusNode = FocusNode();
-  bool? _showTram = false;
-  bool? _showBus = false;
+  bool? _showTram = true;
+  bool? _showBus = true;
   String _searchValue = "";
   bool _snackbarShown = true;
 
@@ -36,28 +36,29 @@ class _MyHomePageState extends State<MyHomePage> {
         const ImageConfiguration(size: Size(0.000001, 0.00001)), 'bus.png');
     for (var vehicle in vehicles) {
       final markerId = vehicle.id.toString();
-      if (_searchValue == "" ||
-          (((vehicle.id >= 1000 && _showBus!) || (vehicle.id < 1000 && _showTram!)) &&
-              vehicle.nr == _searchValue)) {
+      if (((vehicle.id >= 1000 && _showBus!) || (vehicle.id < 1000 && _showTram!)) &&
+          (vehicle.nr == _searchValue || _searchValue == "")) {
         final vehicleName = vehicle.id >= 1000 ? "Autobus" : "Tramwaj";
         markers[MarkerId(markerId)] = Marker(
-          markerId: MarkerId(markerId),
-          position: LatLng(vehicle.latitude, vehicle.longitude),
-          icon: vehicle.id >= 1000 ? bus : tram,
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                vehicleName + " linii nr " + vehicle.nr.toString(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 17,
+            markerId: MarkerId(markerId),
+            position: LatLng(vehicle.latitude, vehicle.longitude),
+            icon: vehicle.id >= 1000 ? bus : tram,
+            onTap: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    vehicleName + " linii nr " + vehicle.nr.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 17,
+                    ),
+                  ),
+                  backgroundColor: Colors.black12.withOpacity(0.85),
                 ),
-              ),
-              backgroundColor: Colors.black12.withOpacity(0.85),
-            ),
-          ),
-        );
+              );
+            });
       }
     }
     setState(() {
@@ -196,6 +197,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             setState(() {
                               _showBus = value;
                             });
+                            getData();
                           },
                           icon: Icons.directions_bus,
                           value: _showBus,
@@ -206,6 +208,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             setState(() {
                               _showTram = value;
                             });
+                            getData();
                           },
                           icon: Icons.tram,
                           value: _showTram,
